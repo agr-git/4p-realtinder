@@ -6,6 +6,7 @@
 *.pem
 *.key
 credentials.json
+token.json
 service-account*.json
 secrets.y*ml
 
@@ -56,8 +57,10 @@ yarn-error.log*
 pnpm-debug.log*
 
 # --- Logs & scratch --------------------------------------------------------
+# .tmp/ es el directorio de intermedios del framework (Sección 7): nunca al repo.
 logs/
 *.log
+.tmp/
 tmp/
 .cache/
 
