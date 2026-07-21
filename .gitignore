@@ -1,0 +1,69 @@
+# --- Secrets & credentials -------------------------------------------------
+# This repo is public. Nothing here should ever reach a commit.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+service-account*.json
+secrets.y*ml
+
+# Portal logins / browser session state (Playwright, Puppeteer, Firecrawl profiles)
+cookies.json
+storage-state.json
+auth-state.json
+.auth/
+profiles/
+user-data-dir/
+
+# --- Scraped data ----------------------------------------------------------
+# Listings carry agent names, phones and emails — personal data under
+# Ley 1581 de 2012. Keep it out of a public repo.
+data/
+output/
+scraped/
+exports/
+*.csv
+*.jsonl
+*.sqlite
+*.sqlite3
+*.db
+!data/schema/**
+!**/fixtures/**
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# --- Node ------------------------------------------------------------------
+node_modules/
+.next/
+.nuxt/
+.turbo/
+coverage/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Logs & scratch --------------------------------------------------------
+logs/
+*.log
+tmp/
+.cache/
+
+# --- OS & editors ----------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
