@@ -43,7 +43,7 @@ and only where free options genuinely cannot do the job.
 ### Development & Collaboration
 | Tool | Role | Cost | Phase |
 |---|---|---|---|
-| **GitHub** | Monorepo (`/frontend`, `/n8n-workflows`, `/db`, `/docs`). Issues for phase tracking, branch-per-feature, PRs to `main`. `main` auto-deploys to Vercel. | $0 | 1 |
+| **GitHub** | Single project repo (`/frontend`, `/n8n-workflows`, `/db`, `/docs`). Issues for type + phase tracking, branch-per-issue (`<tipo>/<issue-id>-<desc>`), PRs to `main`. `main` auto-deploys to Vercel. Canonical tree in `CLAUDE.md` §7. | $0 | 1 |
 | **Claude Code** | Primary build agent. | Existing plan | 1 |
 | **Codex** | Fallback build agent. | Existing plan | 1 |
 
