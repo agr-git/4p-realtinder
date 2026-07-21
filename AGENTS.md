@@ -20,13 +20,13 @@ Tú operas dentro de una arquitectura de 3 capas que separa responsabilidades pa
 **Capa 2: Orquestación (Toma de decisiones)**
 - Esta es tu función. Tu trabajo: enrutamiento inteligente.
 - Leer directivas, llamar herramientas de ejecución en el orden correcto, manejar errores, pedir aclaraciones, proponer mejoras a las directivas
-- Tú eres el puente entre la intención y la ejecución. Por ejemplo, no intentes hacer scraping de sitios web por tu cuenta — lee `directives/scrape_website.md`, define entradas/salidas y luego ejecuta `execution/scrape_single_site.py`
+- Tú eres el puente entre la intención y la ejecución. Por ejemplo, no intentes hacer scraping de sitios web por tu cuenta — lee la directiva de scraping que corresponda, define entradas/salidas y dispara la ejecución que esa directiva declare
 
 **Capa 3: Ejecución (Hacer el trabajo)**
-- Scripts de Python deterministas en `execution/`
-- Variables de entorno, tokens de API, etc. se almacenan en `.env`
+- **Ejecución determinista.** El runtime concreto lo declara cada proyecto en `directives/runtime.md`: scripts de Python en `execution/`, workflows de n8n versionados como JSON, o lo que corresponda. Lo que esta capa exige no es un lenguaje, sino que el trabajo salga del LLM hacia algo repetible, versionado y auditable.
+- Variables de entorno, tokens de API, etc. nunca viven en el repo: `.env` en local, el vault del runtime en producción
 - Manejan llamadas a APIs, procesamiento de datos, operaciones de archivos e interacciones con bases de datos
-- Confiables, testeables, rápidos. Usa scripts en vez de trabajo manual.
+- Confiables, testeables, rápidos. Usa la herramienta en vez de trabajo manual.
 
 **Por qué funciona esto:** si tú haces todo por tu cuenta, los errores se acumulan. Un 90% de precisión por paso = 59% de éxito en 5 pasos. La solución es empujar la complejidad hacia código determinista. Así tú te concentras solo en la toma de decisiones.
 
@@ -104,12 +104,13 @@ Cada etapa la ejecutas tú como orquestador, pero **invocando al sub-agente (ski
 - Nunca trabajar directo sobre `main`
 - Todo cambio se prueba dentro del branch antes de abrir PR: ejecutar los scripts afectados con datos reales o de prueba, verificar salidas contra los criterios de aceptación del issue
 - Escribir o actualizar los tests que cubran el cambio (mínimo: el happy path y el caso extremo que motivó el issue)
+- **Qué cuenta como test.** Cuando el runtime no se testea unitariamente de forma natural — workflows de n8n exportados a JSON, por ejemplo — el test es correr la lógica de parseo y normalización contra **fixtures guardados** en `tests/fixtures/`, verificando el contrato de datos que declara la directiva. Un fixture es una captura real de la entrada (HTML de la página, payload de la API) commiteada al repo. El objetivo es que un selector roto salga rojo en el PR, no como alerta en producción a las 6 AM.
 - Los archivos intermedios de prueba van a `.tmp/`, nunca al commit
 
 ### Etapa 3 — Pull Request y Merge · Sub-agente: **Reviewer**
 **Rol:** garantizar que el merge no rompa nada.
 **Protocolo de testing antes de aprobar merge:**
-- Verificar que la suite de tests completa pasa (no solo los tests nuevos): correr los tests de los módulos afectados y de los que dependen de ellos
+- Verificar que la suite de tests completa pasa (no solo los tests nuevos): correr los tests de los módulos afectados y de los que dependen de ellos. Con runtime no-código, esto significa correr los parsers contra **todos** los fixtures de `tests/fixtures/`, no solo contra el del sitio que se tocó
 - Verificar que los criterios de aceptación del issue original se cumplen uno por uno, con evidencia (salida de ejecución, no suposición)
 - Revisar que no haya secretos, credenciales ni archivos de `.tmp/` en el diff
 - Si el PR incluye cambios estructurales a directivas, marcarlo explícitamente y esperar aprobación humana (Sección 2.1-B); el agente no auto-aprueba merges de directivas
@@ -164,11 +165,17 @@ Los errores son oportunidades de aprendizaje. Cuando algo falla:
 ├── CLAUDE.md                  # Este archivo: el framework
 ├── AGENTS.md / GEMINI.md      # Réplicas byte-idénticas para otros entornos
 ├── MEMORY.md                  # Aprendizajes de ESTE proyecto
+├── docs/                      # Documentos de diseño (ARCHITECTURE, TECH_STACK, …)
 ├── directives/                # SOPs del proyecto
-│   ├── deploy.md              # Target de deploy y su protocolo concreto
+│   ├── runtime.md             # Qué ejecuta la Capa 3 en este proyecto
+│   ├── deploy.md              # Target(s) de deploy y su protocolo concreto
 │   └── workflow/              # Protocolos de los 4 sub-agentes del flujo GitHub
-├── execution/                 # Scripts Python deterministas
-├── tests/                     # Tests (requeridos para PR y deploy)
+├── db/                        # migrations/ (numeradas) y seed/
+├── n8n-workflows/             # Exports JSON + site-configs/ (si el runtime es n8n)
+├── execution/                 # Scripts deterministas (si el proyecto los usa)
+├── frontend/                  # App de presentación, si existe
+├── tests/
+│   └── fixtures/              # Capturas reales de entrada, commiteadas
 ├── framework/
 │   ├── FRAMEWORK.template.md  # Plantilla para instalar esto en otro proyecto
 │   └── MEMORY.global.md       # Aprendizajes transversales (viajan con la plantilla)
@@ -177,6 +184,8 @@ Los errores son oportunidades de aprendizaje. Cuando algo falla:
 ```
 
 **Principios clave:**
+- **No todo proyecto usa todas las carpetas.** `db/`, `n8n-workflows/`, `execution/` y `frontend/` existen solo si el proyecto los necesita; `directives/runtime.md` declara cuáles aplican. Lo que sí es obligatorio en todos: los tres archivos de instrucciones, `MEMORY.md`, `directives/` y `tests/`.
+- Este árbol es el **canónico**. Si un documento de diseño en `docs/` describe la estructura del repo, debe remitir aquí en vez de dibujar su propia versión: dos árboles divergen.
 - Los archivos intermedios viven en `.tmp/` y pueden borrarse siempre; toda salida del flujo debe ser reproducible ejecutando el flujo de nuevo, nunca editada a mano
 - `.env`, `credentials.json`, `token.json` van en `.gitignore`; los secretos de producción viven en el entorno del target de deploy, no en el repo
 - Un script que dos o más proyectos necesitan se promueve a la plantilla (`framework/`) vía issue + PR, como todo. Si crece el patrón, evaluar publicarlo como paquete instalable en vez de copiarlo.
