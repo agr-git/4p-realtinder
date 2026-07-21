@@ -170,7 +170,7 @@ Los errores son oportunidades de aprendizaje. Cuando algo falla:
 │   ├── runtime.md             # Qué ejecuta la Capa 3 en este proyecto
 │   ├── deploy.md              # Target(s) de deploy y su protocolo concreto
 │   └── workflow/              # Protocolos de los 4 sub-agentes del flujo GitHub
-├── db/                        # migrations/ (numeradas) y seed/
+├── supabase/                  # migrations/ (timestamped), seed.sql, config.toml
 ├── n8n-workflows/             # Exports JSON + site-configs/ (si el runtime es n8n)
 ├── execution/                 # Scripts deterministas (si el proyecto los usa)
 ├── frontend/                  # App de presentación, si existe
