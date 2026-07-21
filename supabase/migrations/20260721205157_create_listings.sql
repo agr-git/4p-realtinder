@@ -55,3 +55,29 @@ create trigger listings_set_updated_at
   before update on listings
   for each row
   execute function set_updated_at();
+
+-- RLS — obligatorio, no opcional.
+--
+-- La publishable key (antes anon key) es pública por diseño: viaja en el
+-- bundle del navegador y cualquiera puede leerla del devtools. Una tabla
+-- creada por SQL nace con RLS DESACTIVADO, y PostgREST la expone completa.
+-- Sin lo de abajo, cualquiera con esa key podría INSERT, UPDATE y DELETE
+-- sobre listings, no solo leer.
+--
+-- ARCHITECTURE.md §6 da por sentado que exponer la key es seguro "porque
+-- los datos de Fase 1 son listings públicos de solo lectura". Esa frase
+-- solo se vuelve cierta con estas políticas.
+alter table listings enable row level security;
+
+-- Lectura pública, solo de listings activos. Esto implementa a nivel de
+-- base la regla de ARCHITECTURE.md §3: un listing vendido o arrendado
+-- desaparece del dashboard sin ser borrado.
+drop policy if exists listings_public_read on listings;
+create policy listings_public_read
+  on listings for select
+  to anon, authenticated
+  using (is_active);
+
+-- No se crean políticas de INSERT/UPDATE/DELETE a propósito: con RLS
+-- activo, su ausencia significa que nadie puede escribir con la publishable
+-- key. n8n escribe con service_role, que salta RLS por definición.
