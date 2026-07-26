@@ -158,7 +158,10 @@ here, because two trees drift. This section only documents what is specific to
 this project:
 
 - `docs/` — `TECH_STACK.md`, `ARCHITECTURE.md`, `PROJECT_BLUEPRINT.md`
-- `db/` — `migrations/` (numbered `.sql`, applied via Supabase) and `seed/`
+- `supabase/` — `migrations/` (timestamped `.sql`, applied with `supabase db push`),
+  `seed.sql`, and `config.toml`. This is the layout the Supabase CLI expects and
+  it is **not configurable** — an earlier draft of this document specified
+  `db/migrations/`, which the CLI cannot read.
 - `n8n-workflows/` — `scrape-ssr-sites.json` (exported workflow) and
   `site-configs/` (selector maps as JSON, one per site group)
 - `frontend/` — Next.js app (`app/`, `components/`, `lib/`); Vercel deploys from here
