@@ -25,8 +25,8 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
 
 SITES = [
     {"source": "castrorosero",    "domain": "castrorosero.com",                 "variant": "home_icons"},
-    {"source": "vopropiedadraiz", "domain": "vopropiedadraiz.co",              "variant": "home_icons"},
-    {"source": "administrabienes","domain": "administrabienesraices.com",       "variant": "home_icons"},
+    {"source": "vopropiedadraiz", "domain": "vopropiedadraiz.co",              "variant": "caption_area"},
+    {"source": "administrabienes","domain": "administrabienesraices.com",       "variant": "caption_area"},
     {"source": "luciaprada",      "domain": "inmobiliarialuciaprada.com.co",    "variant": "search_text"},
     # gruporepublica, gomezchaljubb, cima: la home devolvió 0 con este parser;
     # requieren revisión de su estructura antes de habilitarlos.
@@ -142,6 +142,56 @@ def parse_search_text(source, domain, htmltext):
     return rows
 
 
+def parse_caption_area(source, domain, htmltext):
+    """Variante VO Propiedad / Administra B: tarjeta con <h2> + 'Área Construida'.
+    beds/baths NO están en el listado -> quedan null (van a Fase 2, página de detalle)."""
+    listing = re.compile(r'href="https://' + re.escape(domain) + r'/([a-z0-9-]+)/(\d+)"', re.I)
+    price = re.compile(r'class="precio"[^>]*>\s*\$?\s*([\d.,]+)', re.I)
+    title = re.compile(r"<h2>([^<]{4,120})</h2>")
+    area = re.compile(r"Área Construida</strong>\s*:\s*([\d.,]+)\s*m", re.I)
+    img = re.compile(r'<img[^>]+src="(https://image\.wasi\.co/[^"]+)"')
+    rows, seen = [], set()
+    for c in htmltext.split('class="item"')[1:]:
+        m = listing.search(c)
+        if not m or m.group(2) in seen:
+            continue
+        seen.add(m.group(2))
+        pm, tm, ar, im = price.search(c), title.search(c), area.search(c), img.search(c)
+        r = _row(source, domain, m.group(1), m.group(2),
+                 price_int(pm.group(1)) if pm else None,
+                 None, None,  # beds/baths no vienen en el listado
+                 area_num(ar.group(1)) if ar else None,
+                 html.unescape(tm.group(1).strip()) if tm else None,
+                 im.group(1) if im else None)
+        if r:
+            rows.append(r)
+    return rows
+
+
+def check_completeness(allrows):
+    """CHECK de calidad: por fuente, % de inmuebles con área/habitaciones/baños.
+    Marca las fuentes que traen inmuebles pero 0% en un campo -> su parser quedó incompleto.
+    Objetivo: que una integración nueva no pase silenciosamente sin detalles."""
+    from collections import defaultdict
+    by = defaultdict(list)
+    for r in allrows:
+        by[r["source"]].append(r)
+    warns = []
+    print("# --- CHECK de completitud por fuente ---")
+    for src, rows in by.items():
+        n = len(rows)
+        pct = lambda k: (sum(1 for r in rows if r[k] is not None) * 100 // n) if n else 0
+        print(f"#   {src:16} n={n:3}  area={pct('area_m2')}%  hab={pct('beds')}%  banos={pct('baths')}%")
+        for field in ("area_m2", "beds", "baths"):
+            if n > 0 and pct(field) == 0:
+                warns.append(f"{src}: 0% con '{field}' — revisar/añadir variante de parser (o requiere Fase 2)")
+    if warns:
+        print("# ⚠️  ALERTAS de integración incompleta:")
+        for w in warns:
+            print(f"#     - {w}")
+    return warns
+
+
 def scrape_site(site, stamp):
     src, dom, var = site["source"], site["domain"], site["variant"]
     if var == "home_icons":
@@ -150,6 +200,10 @@ def scrape_site(site, stamp):
         rows = []
         for op in ("venta", "arriendo"):
             rows += parse_search_text(src, dom, fetch(f"https://{dom}/s/{op}"))
+    elif var == "caption_area":
+        rows = []
+        for op in ("venta", "arriendo"):
+            rows += parse_caption_area(src, dom, fetch(f"https://{dom}/s/{op}"))
     else:
         raise ValueError(f"variante desconocida: {var}")
     for r in rows:
@@ -171,6 +225,7 @@ def main():
         except Exception as e:  # noqa: BLE001 — un sitio caído no debe tumbar el resto (aislamiento del loop)
             print(f"# {site['source']:16} FALLA: {type(e).__name__}: {e}", flush=True)
         time.sleep(2)  # cortesía: ≥2s entre requests
+    check_completeness(allrows)
     out = json.dumps(allrows, ensure_ascii=False, indent=1)
     if args.out == "-":
         print(out)
