@@ -2,180 +2,183 @@
 """
 Scraper de inmuebles de las inmobiliarias Wasi del Eje Cafetero.
 
-APRENDIZAJE CLAVE (ver framework/MEMORY.global.md): el supuesto de que "los 7
-sitios Wasi comparten un solo selector set" es FALSO. Distintas instalaciones de
-Wasi renderizan las tarjetas de forma distinta. Por eso cada sitio declara su
-VARIANTE de parser:
+APRENDIZAJE (framework/MEMORY.global.md): los sitios Wasi NO comparten un solo
+selector set. Cada sitio declara su VARIANTE de parser:
 
-  - "home_icons": la home lista inmuebles en <div class="item"> con las features
-    en íconos (<i class="fal fa-bed"><span>N</span>, fa-shower, class="area">).
-    Aplica a castrorosero, vopropiedadraiz, administrabienes.
-  - "search_text": las features vienen como TEXTO en <div class="info_details">
-    ("3 Habitaciones / 2 Baños / 2 Garaje / 121 Área m²") y los inmuebles con
-    todos los detalles están en las páginas /s/venta y /s/arriendo, no en la home.
-    Aplica a luciaprada.
+  - "home_icons"  (castrorosero): la HOME lista en <div class="item"> con
+    features en íconos (fa-bed/fa-shower/class="area").
+  - "search_text" (luciaprada): páginas /s/venta,/s/arriendo con features como
+    texto plano en <div class="info_details">.
+  - "caption_area"(vopropiedadraiz, administrabienes): /s/ con <h2> y
+    'Área Construida'; hab/baños no vienen en el listado (Fase 2).
+  - "search_dt"   (gruporepublica, gomezchaljubb, cima): /s/ con features en
+    pares <span class="dt1">N</span><span class="dt2">Label</span> y precio en
+    <div class="areaPrecio">.
 
-Salida: JSON consolidado en stdout (o al archivo de --out). Contrato de campos =
-docs/ARCHITECTURE.md §3.  NO scrapea páginas de detalle (eso es Fase 2).
+Las variantes /s/* PAGINAN (?page=N). El scraper recorre páginas hasta que una
+vuelve vacía (o el tope PAGE_CAP). Salida JSON. Contrato = docs/ARCHITECTURE.md §3.
 """
 import re, json, html, argparse, time, urllib.request
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120 Safari/537.36")
+PAGE_CAP = 8  # tope de páginas por operación (cortesía)
 
 SITES = [
-    {"source": "castrorosero",    "domain": "castrorosero.com",                 "variant": "home_icons"},
-    {"source": "vopropiedadraiz", "domain": "vopropiedadraiz.co",              "variant": "caption_area"},
-    {"source": "administrabienes","domain": "administrabienesraices.com",       "variant": "caption_area"},
-    {"source": "luciaprada",      "domain": "inmobiliarialuciaprada.com.co",    "variant": "search_text"},
-    # gruporepublica, gomezchaljubb, cima: la home devolvió 0 con este parser;
-    # requieren revisión de su estructura antes de habilitarlos.
+    {"source": "castrorosero",    "domain": "castrorosero.com",              "variant": "home_icons"},
+    {"source": "vopropiedadraiz", "domain": "vopropiedadraiz.co",            "variant": "caption_area"},
+    {"source": "administrabienes","domain": "administrabienesraices.com",     "variant": "caption_area"},
+    {"source": "luciaprada",      "domain": "inmobiliarialuciaprada.com.co",  "variant": "search_text"},
+    {"source": "gruporepublica",  "domain": "gruporepublica.com.co",          "variant": "search_dt"},
+    {"source": "gomezchaljubb",   "domain": "inmobiliariagomezchaljubb.com",  "variant": "search_dt"},
+    {"source": "cima",            "domain": "inmobiliariacima.com",           "variant": "search_dt"},
 ]
-
 BIZ = {"arriendo": "arriendo", "alquiler": "arriendo", "arrendamiento": "arriendo",
        "venta": "venta", "permuta": "permuta"}
 
 
 def fetch(url):
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    return urllib.request.urlopen(req, timeout=25).read().decode("utf-8", "replace")
+    return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=25).read().decode("utf-8", "replace")
 
 
 def price_int(s):
-    """COP: los puntos son separadores de miles, sin decimales -> entero."""
-    d = re.sub(r"[^\d]", "", s)
-    return int(d) if d else None
+    d = re.sub(r"[^\d]", "", s); return int(d) if d else None
 
 
 def area_num(s):
-    """Área: coma = decimal; punto = miles SOLO si le siguen 3 dígitos (71.8 -> 71.8, 1.200 -> 1200)."""
     s = s.strip()
-    if "," in s:
-        s = s.replace(".", "").replace(",", ".")
-    elif "." in s and len(s.rsplit(".", 1)[1]) == 3:
-        s = s.replace(".", "")
-    try:
-        return round(float(s), 2)
-    except ValueError:
-        return None
+    if "," in s: s = s.replace(".", "").replace(",", ".")
+    elif "." in s and len(s.rsplit(".", 1)[1]) == 3: s = s.replace(".", "")
+    try: return round(float(s), 2)
+    except ValueError: return None
 
 
 def parse_slug(slug):
-    """URL Wasi: <tipo>-<negocio>-<barrio...>-<ciudad>. Devuelve (tipo, negocio, barrio, ciudad)."""
     parts = slug.split("-")
     bi = next((i for i, p in enumerate(parts) if p in BIZ), None)
-    if bi is None:
-        return None, None, None, None
-    ptype = "-".join(parts[:bi]) or None
-    business = BIZ[parts[bi]]
-    tail = parts[bi + 1:]
-    city = tail[-1] if tail else None
-    neighborhood = "-".join(tail[:-1]) or None
-    return ptype, business, neighborhood, city
+    if bi is None: return None, None, None, None
+    return ("-".join(parts[:bi]) or None, BIZ[parts[bi]], "-".join(parts[bi + 1:-1]) or None, parts[-1] if parts[bi + 1:] else None)
 
 
 def _row(source, domain, slug, code, price, beds, baths, area, title, img):
     pt, bz, nb, ci = parse_slug(slug)
-    if price is None or not bz:      # contrato §3: sin precio o sin negocio -> se descarta
-        return None
-    return {
-        "dedupe_key": f"{source}:{code}", "source": source, "source_listing_id": code,
-        "url": f"https://{domain}/{slug}/{code}", "business_type": bz, "property_type": pt,
-        "title": title, "price_cop": price, "beds": beds, "baths": baths, "area_m2": area,
-        "city": ci, "neighborhood": nb, "image_url": img, "scraped_at": None,
-    }
+    if price is None or not bz: return None
+    return {"dedupe_key": f"{source}:{code}", "source": source, "source_listing_id": code,
+            "url": f"https://{domain}/{slug}/{code}", "business_type": bz, "property_type": pt,
+            "title": title, "price_cop": price, "beds": beds, "baths": baths, "area_m2": area,
+            "city": ci, "neighborhood": nb, "image_url": img, "scraped_at": None}
 
 
-def parse_home_icons(source, domain, htmltext):
+def parse_home_icons(source, domain, h):
     listing = re.compile(r'href="https://' + re.escape(domain) + r'/([a-z0-9-]+)/(\d+)"', re.I)
     price = re.compile(r'class="precio"[^>]*>\s*\$?\s*([\d.,]+)', re.I)
     title = re.compile(r'/\d+"\s*>\s*([A-Za-zÁÉÍÓÚÑáéíóúñ][^<]{4,90})')
-    bed = re.compile(r'fa-bed"></i>\s*<span>(\d+)</span>')
-    bath = re.compile(r'fa-shower"></i>\s*<span>(\d+)</span>')
-    area = re.compile(r'Área\s*m<sup>2</sup></strong>:\s*([\d.,]+)')
-    img = re.compile(r'<img[^>]+src="(https://image\.wasi\.co/[^"]+)"')
+    bed = re.compile(r'fa-bed"></i>\s*<span>(\d+)</span>'); bath = re.compile(r'fa-shower"></i>\s*<span>(\d+)</span>')
+    area = re.compile(r'Área\s*m<sup>2</sup></strong>:\s*([\d.,]+)'); img = re.compile(r'<img[^>]+src="(https://image\.wasi\.co/[^"]+)"')
     rows, seen = [], set()
-    for c in htmltext.split('class="item"')[1:]:
+    for c in h.split('class="item"')[1:]:
         m = listing.search(c)
-        if not m or m.group(2) in seen:
-            continue
+        if not m or m.group(2) in seen: continue
         seen.add(m.group(2))
-        pm, tm, bd, ba, ar, im = (price.search(c), title.search(c), bed.search(c),
-                                  bath.search(c), area.search(c), img.search(c))
-        r = _row(source, domain, m.group(1), m.group(2),
-                 price_int(pm.group(1)) if pm else None,
+        pm, tm, bd, ba, ar, im = price.search(c), title.search(c), bed.search(c), bath.search(c), area.search(c), img.search(c)
+        r = _row(source, domain, m.group(1), m.group(2), price_int(pm.group(1)) if pm else None,
                  int(bd.group(1)) if bd else None, int(ba.group(1)) if ba else None,
-                 area_num(ar.group(1)) if ar else None,
-                 html.unescape(tm.group(1).strip()) if tm else None,
-                 im.group(1) if im else None)
-        if r:
-            rows.append(r)
+                 area_num(ar.group(1)) if ar else None, html.unescape(tm.group(1).strip()) if tm else None, im.group(1) if im else None)
+        if r: rows.append(r)
     return rows
 
 
-def parse_search_text(source, domain, htmltext):
-    """Variante luciaprada: features en texto dentro de <div class="info_details">."""
+def parse_search_text(source, domain, h):
     listing = re.compile(r'href="https://' + re.escape(domain) + r'/([a-z0-9-]+)/(\d+)"', re.I)
     price = re.compile(r'class="precio"[^>]*>\s*\$?\s*([\d.,]+)', re.I)
-    title = re.compile(r'class="t8-title"[^>]*>([^<]+)<')
-    details = re.compile(r'class="info_details">(.*?)</div>', re.S)
+    title = re.compile(r'class="t8-title"[^>]*>([^<]+)<'); details = re.compile(r'class="info_details">(.*?)</div>', re.S)
     img = re.compile(r'<img[^>]+src="(https://image\.wasi\.co/[^"]+)"')
     rows, seen = [], set()
-    for c in htmltext.split('class="item"')[1:]:
+    for c in h.split('class="item"')[1:]:
         m = listing.search(c)
-        if not m or m.group(2) in seen:
-            continue
+        if not m or m.group(2) in seen: continue
         seen.add(m.group(2))
         pm, tm, dm, im = price.search(c), title.search(c), details.search(c), img.search(c)
         dt = dm.group(1) if dm else ""
-        bd = re.search(r"(\d+)\s*Habitaci", dt)
-        ba = re.search(r"(\d+)\s*Ba[ñn]o", dt)
-        ar = re.search(r"([\d.,]+)\s*[ÁA]rea", dt)
-        r = _row(source, domain, m.group(1), m.group(2),
-                 price_int(pm.group(1)) if pm else None,
+        bd = re.search(r"(\d+)\s*Habitaci", dt); ba = re.search(r"(\d+)\s*Ba[ñn]o", dt); ar = re.search(r"([\d.,]+)\s*[ÁA]rea", dt)
+        r = _row(source, domain, m.group(1), m.group(2), price_int(pm.group(1)) if pm else None,
                  int(bd.group(1)) if bd else None, int(ba.group(1)) if ba else None,
-                 area_num(ar.group(1)) if ar else None,
-                 html.unescape(tm.group(1).strip()) if tm else None,
-                 im.group(1) if im else None)
-        if r:
-            rows.append(r)
+                 area_num(ar.group(1)) if ar else None, html.unescape(tm.group(1).strip()) if tm else None, im.group(1) if im else None)
+        if r: rows.append(r)
     return rows
 
 
-def parse_caption_area(source, domain, htmltext):
-    """Variante VO Propiedad / Administra B: tarjeta con <h2> + 'Área Construida'.
-    beds/baths NO están en el listado -> quedan null (van a Fase 2, página de detalle)."""
+def parse_caption_area(source, domain, h):
     listing = re.compile(r'href="https://' + re.escape(domain) + r'/([a-z0-9-]+)/(\d+)"', re.I)
     price = re.compile(r'class="precio"[^>]*>\s*\$?\s*([\d.,]+)', re.I)
-    title = re.compile(r"<h2>([^<]{4,120})</h2>")
-    area = re.compile(r"Área Construida</strong>\s*:\s*([\d.,]+)\s*m", re.I)
+    title = re.compile(r"<h2>([^<]{4,120})</h2>"); area = re.compile(r"Área Construida</strong>\s*:\s*([\d.,]+)\s*m", re.I)
     img = re.compile(r'<img[^>]+src="(https://image\.wasi\.co/[^"]+)"')
     rows, seen = [], set()
-    for c in htmltext.split('class="item"')[1:]:
+    for c in h.split('class="item"')[1:]:
         m = listing.search(c)
-        if not m or m.group(2) in seen:
-            continue
+        if not m or m.group(2) in seen: continue
         seen.add(m.group(2))
         pm, tm, ar, im = price.search(c), title.search(c), area.search(c), img.search(c)
-        r = _row(source, domain, m.group(1), m.group(2),
-                 price_int(pm.group(1)) if pm else None,
-                 None, None,  # beds/baths no vienen en el listado
-                 area_num(ar.group(1)) if ar else None,
-                 html.unescape(tm.group(1).strip()) if tm else None,
-                 im.group(1) if im else None)
-        if r:
-            rows.append(r)
+        r = _row(source, domain, m.group(1), m.group(2), price_int(pm.group(1)) if pm else None,
+                 None, None, area_num(ar.group(1)) if ar else None, html.unescape(tm.group(1).strip()) if tm else None, im.group(1) if im else None)
+        if r: rows.append(r)
+    return rows
+
+
+def parse_search_dt(source, domain, h):
+    """gruporepublica/gomezchaljubb/cima: features en <span class=dt1>N</span><span class=dt2>Label</span>,
+    precio en <div class=areaPrecio>. Tarjetas separadas por el <a> de la imagen."""
+    cards = re.split(r'(?=<a href="https://' + re.escape(domain) + r'/[a-z0-9-]+/\d+">\s*<figure)', h)
+    tlink = re.compile(r'href="https://' + re.escape(domain) + r'/([a-z0-9-]+)/(\d+)"\s+class="t8-title"[^>]*>([^<]+)<')
+    img = re.compile(r'<img[^>]+src="(https://image\.wasi\.co/[^"]+)"')
+    prc = re.compile(r'\$\s?([\d.,]+)\s*<small>')
+    def dt(win, label):
+        r = re.search(r'<span class="dt1">([\d.,]+)</span>\s*<span class="dt2[^"]*">\s*' + label, win)
+        return r.group(1) if r else None
+    rows, seen = [], set()
+    for c in cards:
+        m = tlink.search(c)
+        if not m or m.group(2) in seen: continue
+        seen.add(m.group(2))
+        bd = dt(c, "Habitaci"); ba = dt(c, "Ba[ñn]o"); ar = dt(c, "[ÁA]rea")
+        pm, im = prc.search(c), img.search(c)
+        r = _row(source, domain, m.group(1), m.group(2), price_int(pm.group(1)) if pm else None,
+                 int(bd) if bd and bd.isdigit() else None, int(ba) if ba and ba.isdigit() else None,
+                 area_num(ar) if ar else None, html.unescape(m.group(3).strip()), im.group(1) if im else None)
+        if r: rows.append(r)
+    return rows
+
+
+SEARCH_PARSERS = {"search_text": parse_search_text, "caption_area": parse_caption_area, "search_dt": parse_search_dt}
+
+
+def scrape_site(site, stamp):
+    src, dom, var = site["source"], site["domain"], site["variant"]
+    rows, seen = [], set()
+    if var == "home_icons":
+        rows = parse_home_icons(src, dom, fetch(f"https://{dom}/"))
+    elif var in SEARCH_PARSERS:
+        parser = SEARCH_PARSERS[var]
+        for op in ("venta", "arriendo"):
+            for page in range(1, PAGE_CAP + 1):
+                url = f"https://{dom}/s/{op}" + (f"?page={page}" if page > 1 else "")
+                try: page_rows = parser(src, dom, fetch(url))
+                except Exception: break
+                fresh = [r for r in page_rows if r["dedupe_key"] not in seen]
+                if not fresh: break              # sin nuevos -> fin de la paginación
+                for r in fresh: seen.add(r["dedupe_key"])
+                rows += fresh
+                time.sleep(2)                    # cortesía entre páginas
+    else:
+        raise ValueError(f"variante desconocida: {var}")
+    for r in rows: r["scraped_at"] = stamp
     return rows
 
 
 def check_completeness(allrows):
-    """CHECK de calidad: por fuente, % de inmuebles con área/habitaciones/baños.
-    Marca las fuentes que traen inmuebles pero 0% en un campo -> su parser quedó incompleto.
-    Objetivo: que una integración nueva no pase silenciosamente sin detalles."""
     from collections import defaultdict
     by = defaultdict(list)
-    for r in allrows:
-        by[r["source"]].append(r)
+    for r in allrows: by[r["source"]].append(r)
     warns = []
     print("# --- CHECK de completitud por fuente ---")
     for src, rows in by.items():
@@ -183,55 +186,28 @@ def check_completeness(allrows):
         pct = lambda k: (sum(1 for r in rows if r[k] is not None) * 100 // n) if n else 0
         print(f"#   {src:16} n={n:3}  area={pct('area_m2')}%  hab={pct('beds')}%  banos={pct('baths')}%")
         for field in ("area_m2", "beds", "baths"):
-            if n > 0 and pct(field) == 0:
-                warns.append(f"{src}: 0% con '{field}' — revisar/añadir variante de parser (o requiere Fase 2)")
+            if n > 0 and pct(field) == 0: warns.append(f"{src}: 0% con '{field}' — revisar variante o Fase 2")
     if warns:
-        print("# ⚠️  ALERTAS de integración incompleta:")
-        for w in warns:
-            print(f"#     - {w}")
+        print("# ⚠️  ALERTAS:"); [print(f"#     - {w}") for w in warns]
     return warns
-
-
-def scrape_site(site, stamp):
-    src, dom, var = site["source"], site["domain"], site["variant"]
-    if var == "home_icons":
-        rows = parse_home_icons(src, dom, fetch(f"https://{dom}/"))
-    elif var == "search_text":
-        rows = []
-        for op in ("venta", "arriendo"):
-            rows += parse_search_text(src, dom, fetch(f"https://{dom}/s/{op}"))
-    elif var == "caption_area":
-        rows = []
-        for op in ("venta", "arriendo"):
-            rows += parse_caption_area(src, dom, fetch(f"https://{dom}/s/{op}"))
-    else:
-        raise ValueError(f"variante desconocida: {var}")
-    for r in rows:
-        r["scraped_at"] = stamp
-    return rows
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="-", help="archivo de salida JSON, o '-' para stdout")
-    ap.add_argument("--stamp", required=True, help="timestamp ISO para scraped_at (ej. 2026-07-26T00:00:00Z)")
+    ap.add_argument("--out", default="-"); ap.add_argument("--stamp", required=True)
     args = ap.parse_args()
     allrows = []
     for site in SITES:
         try:
-            rows = scrape_site(site, args.stamp)
-            allrows += rows
+            rows = scrape_site(site, args.stamp); allrows += rows
             print(f"# {site['source']:16} {len(rows)} inmuebles", flush=True)
-        except Exception as e:  # noqa: BLE001 — un sitio caído no debe tumbar el resto (aislamiento del loop)
+        except Exception as e:
             print(f"# {site['source']:16} FALLA: {type(e).__name__}: {e}", flush=True)
-        time.sleep(2)  # cortesía: ≥2s entre requests
+        time.sleep(2)
     check_completeness(allrows)
     out = json.dumps(allrows, ensure_ascii=False, indent=1)
-    if args.out == "-":
-        print(out)
-    else:
-        open(args.out, "w").write(out)
-        print(f"# TOTAL {len(allrows)} -> {args.out}")
+    if args.out == "-": print(out)
+    else: open(args.out, "w").write(out); print(f"# TOTAL {len(allrows)} -> {args.out}")
 
 
 if __name__ == "__main__":
