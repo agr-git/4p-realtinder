@@ -1,0 +1,79 @@
+/* ============================================================================
+   design/tokens.css — MÓDULO DE DISEÑO (fuente única de verdad)
+   ----------------------------------------------------------------------------
+   TODO el diseño de la app vive aquí como custom properties. Los componentes
+   SOLO referencian var(--token); nunca hardcodean color/espaciado/tipografía.
+   Para re-skin o rebrand: edita ESTE archivo. No toques los componentes.
+   Ver design/README.md.
+   ========================================================================== */
+
+:root {
+  /* — Marca / acento — */
+  --brand: #1f57d6;
+  --brand-ink: #ffffff;
+  --brand-2: #7a3ff0;               /* usado en el gradiente del logo/thumb */
+
+  /* — Neutros (con leve sesgo frío hacia el acento) — */
+  --ground: #eef1f5;                /* fondo de página */
+  --surface: #ffffff;               /* tarjetas, paneles */
+  --surface-2: #f6f8fb;             /* inputs, chips, zonas sutiles */
+  --ink: #141922;                   /* texto principal */
+  --muted: #5a6473;                 /* texto secundario */
+  --faint: #8b95a4;                 /* texto terciario */
+  --line: #dde3ea;                  /* bordes */
+
+  /* — Escala de afinidad (semántica, separada del acento) — */
+  --match-hi: #0f9d58;              /* >= --match-hi-threshold */
+  --match-mid: #c07800;             /* >= --match-mid-threshold */
+  --match-lo: #7a8494;
+  --db: #c23b3b;                    /* deal breaker / obligatorio */
+
+  /* umbrales del match (los lee el JS vía getComputedStyle si hace falta) */
+  --match-hi-threshold: 85;
+  --match-mid-threshold: 60;
+
+  /* — Tipografía — */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --fs-xs: 11px; --fs-sm: 12.5px; --fs-base: 14px; --fs-lg: 17px; --fs-xl: 19px; --fs-2xl: 23px;
+
+  /* — Espaciado — */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 22px; --sp-6: 32px;
+
+  /* — Radios y sombras — */
+  --r-sm: 8px; --r: 12px; --r-lg: 14px; --r-pill: 20px;
+  --shadow: 0 1px 2px rgba(20,25,34,.06), 0 4px 16px rgba(20,25,34,.06);
+  --shadow-lg: 0 8px 26px rgba(20,25,34,.13);
+  --shadow-modal: 0 20px 60px rgba(0,0,0,.4);
+
+  /* — Layout — */
+  --maxw: 1240px;
+  --sidebar-w: 312px;
+}
+
+/* Tema oscuro: solo se redefinen tokens; los componentes no cambian. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground:#0d1117; --surface:#161b22; --surface-2:#1b212b;
+    --ink:#e7ecf3; --muted:#9aa5b4; --faint:#6b7688; --line:#262d38;
+    --brand:#4c82f7; --brand-ink:#0d1117;
+    --match-hi:#3fbf7f; --match-mid:#e0a63a; --match-lo:#8b95a4; --db:#e56b6b;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+    --shadow-lg:0 8px 26px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"] {
+  --ground:#0d1117; --surface:#161b22; --surface-2:#1b212b;
+  --ink:#e7ecf3; --muted:#9aa5b4; --faint:#6b7688; --line:#262d38;
+  --brand:#4c82f7; --brand-ink:#0d1117;
+  --match-hi:#3fbf7f; --match-mid:#e0a63a; --match-lo:#8b95a4; --db:#e56b6b;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+  --shadow-lg:0 8px 26px rgba(0,0,0,.45);
+}
+:root[data-theme="light"] {
+  --ground:#eef1f5; --surface:#ffffff; --surface-2:#f6f8fb;
+  --ink:#141922; --muted:#5a6473; --faint:#8b95a4; --line:#dde3ea;
+  --brand:#1f57d6; --brand-ink:#ffffff;
+  --match-hi:#0f9d58; --match-mid:#c07800; --match-lo:#7a8494; --db:#c23b3b;
+  --shadow:0 1px 2px rgba(20,25,34,.06), 0 4px 16px rgba(20,25,34,.06);
+  --shadow-lg:0 8px 26px rgba(20,25,34,.13);
+}
