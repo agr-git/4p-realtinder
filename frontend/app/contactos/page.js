@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const LBL = { tipo: "Tipo", precio: "Precio", ubicacion: "Ubicación", habitaciones: "Habitaciones", banos: "Baños", estrato: "Estrato", area: "Área" };
+const LBL = { tipo: "Tipo", precio: "Precio", ubicacion: "Ubicación", barrio: "Barrio", habitaciones: "Habitaciones", banos: "Baños", estrato: "Estrato", area: "Área" };
 const fmt = (n) => "$" + Number(n).toLocaleString("es-CO");
 const cap = (s) => (s ? String(s).replace(/-/g, " ") : "");
 
