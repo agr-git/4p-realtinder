@@ -4,11 +4,12 @@ import { supabase } from "../lib/supabaseClient";
 import { rankListings } from "../lib/affinity";
 
 const SRC_LABEL = { castrorosero: "Castro Rosero", luciaprada: "Lucía Prada", vopropiedadraiz: "VO Propiedad", administrabienes: "Administra B.", propio: "Inventario propio" };
-const LBL = { tipo: "Tipo", precio: "Precio", ubicacion: "Ubicación", habitaciones: "Habitaciones", banos: "Baños", estrato: "Estrato", area: "Área" };
+const LBL = { tipo: "Tipo", precio: "Precio", ubicacion: "Ubicación", barrio: "Barrio", habitaciones: "Habitaciones", banos: "Baños", estrato: "Estrato", area: "Área" };
 const CRIT_DEFS = [
   { k: "tipo", label: "Tipo de propiedad", kind: "select", src: "types" },
   { k: "precio", label: "Precio máximo", kind: "number", ph: "ej. 300000000" },
-  { k: "ubicacion", label: "Ubicación", kind: "select", src: "cities" },
+  { k: "ubicacion", label: "Ubicación (ciudad)", kind: "select", src: "cities" },
+  { k: "barrio", label: "Barrio", kind: "select", src: "barrios" },
   { k: "habitaciones", label: "Habitaciones (mín.)", kind: "number", ph: "ej. 3" },
   { k: "banos", label: "Baños (mín.)", kind: "number", ph: "ej. 2" },
   { k: "estrato", label: "Estrato", kind: "select", src: "estratos" },
@@ -25,7 +26,7 @@ export default function Home() {
   const [err, setErr] = useState(null);
   const [biz, setBiz] = useState("venta");
   const [crit, setCrit] = useState({
-    tipo: { v: "apartamento", db: false }, precio: { v: "", db: false }, ubicacion: { v: "manizales", db: false },
+    tipo: { v: "apartamento", db: false }, precio: { v: "", db: false }, ubicacion: { v: "manizales", db: false }, barrio: { v: "", db: false },
     habitaciones: { v: "", db: false }, banos: { v: "", db: false }, estrato: { v: "", db: false },
     area: { v: "", db: false }, amenidades: { v: "", db: false },
   });
@@ -50,7 +51,8 @@ export default function Home() {
 
   const types = useMemo(() => [...new Set(listings.map((d) => d.property_type).filter(Boolean))].sort(), [listings]);
   const cities = useMemo(() => [...new Set(listings.map((d) => d.city).filter(Boolean))].sort(), [listings]);
-  const opts = { types, cities, estratos: ["1", "2", "3", "4", "5", "6"] };
+  const barrios = useMemo(() => [...new Set(listings.map((d) => d.neighborhood).filter(Boolean))].sort(), [listings]);
+  const opts = { types, cities, barrios, estratos: ["1", "2", "3", "4", "5", "6"] };
 
   const { shown, excluded } = useMemo(() => rankListings(listings.filter((d) => d.business_type === biz), crit, weights), [listings, crit, biz, weights]);
   const setV = (k, v) => setCrit((c) => ({ ...c, [k]: { ...c[k], v } }));

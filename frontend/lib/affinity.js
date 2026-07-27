@@ -5,7 +5,8 @@
 export function degree(k, val, it) {
   if (val === "" || val == null) return null; // criterio inactivo
   if (k === "tipo") return it.property_type === val ? 1 : 0;
-  if (k === "ubicacion") return it.city === val ? 1 : it.neighborhood === val ? 1 : 0;
+  if (k === "ubicacion") return it.city === val ? 1 : 0;            // ciudad
+  if (k === "barrio") return it.neighborhood === val ? 1 : 0;       // barrio (afina dentro de la ciudad)
   if (k === "precio") {
     const max = +val;
     if (!it.price_cop) return 0;
