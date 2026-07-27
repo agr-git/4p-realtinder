@@ -29,16 +29,19 @@ export default function Nav() {
   const logout = () => supabase.auth.signOut();
 
   return (
-    <header className="header"><div className="bar">
-      <Link href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}><span className="mk" />Real<b>Tinder</b></Link>
-      <nav className="tabs">{TABS.map((t) => <Link key={t.href} href={t.href} className={"tab" + (path === t.href ? " on" : "")}>{t.label}</Link>)}</nav>
-      <span className="spacer" />
-      {session === undefined ? null : session ? (
-        <span className="count">{session.user.email} · <button className="linkbtn" onClick={logout}>Salir</button></span>
-      ) : (
-        <button className="btn sm" onClick={() => setModal(true)}>Iniciar sesión</button>
-      )}
+    <>
+      <header className="header"><div className="bar">
+        <Link href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}><span className="mk" />Real<b>Tinder</b></Link>
+        <nav className="tabs">{TABS.map((t) => <Link key={t.href} href={t.href} className={"tab" + (path === t.href ? " on" : "")}>{t.label}</Link>)}</nav>
+        <span className="spacer" />
+        {session === undefined ? null : session ? (
+          <span className="count">{session.user.email} · <button className="linkbtn" onClick={logout}>Salir</button></span>
+        ) : (
+          <button className="btn sm" onClick={() => setModal(true)}>Iniciar sesión</button>
+        )}
+      </div></header>
 
+      {/* Modal FUERA del header: el backdrop-filter del header rompe position:fixed. */}
       {modal && (
         <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) setModal(false); }}>
           <div className="modal" style={{ maxWidth: 380 }}>
@@ -52,6 +55,6 @@ export default function Nav() {
           </div>
         </div>
       )}
-    </div></header>
+    </>
   );
 }
