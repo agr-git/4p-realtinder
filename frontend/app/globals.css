@@ -141,3 +141,5 @@ table.inv { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); min
 table.inv th { text-align: left; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .03em; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.inv td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
 table.inv tr:last-child td { border-bottom: 0; }
+
+.linkbtn { border:0; background:none; color:var(--brand); font-weight:650; cursor:pointer; font-family:inherit; font-size:inherit; padding:0; }

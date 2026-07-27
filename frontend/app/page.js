@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { rankListings } from "../lib/affinity";
+import { useSession } from "../lib/useSession";
 
 const SRC_LABEL = { castrorosero: "Castro Rosero", luciaprada: "Lucía Prada", vopropiedadraiz: "VO Propiedad", administrabienes: "Administra B.", propio: "Inventario propio" };
 const LBL = { tipo: "Tipo", precio: "Precio", ubicacion: "Ubicación", barrio: "Barrio", habitaciones: "Habitaciones", banos: "Baños", estrato: "Estrato", area: "Área" };
@@ -34,6 +35,7 @@ export default function Home() {
   const [form, setForm] = useState({ nombre: "", apellido: "", celular: "", email: "" });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const session = useSession();
 
   useEffect(() => {
     (async () => {
@@ -70,16 +72,19 @@ export default function Home() {
   };
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2800); };
+  const openModal = () => { if (!session) { showToast("Inicia sesión para guardar contactos"); return; } setModal(true); };
   const saveContact = async () => {
     if (!form.nombre.trim() || !form.celular.trim()) { showToast("Nombre y celular son obligatorios"); return; }
     setSaving(true);
-    const res = await fetch("/api/contacts", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, savedSearch: { business_type: biz, criteria: crit } }),
-    });
+    // owner se llena solo con auth.uid() (default + RLS) al escribir con la sesión.
+    const { data: c, error } = await supabase.from("contacts")
+      .insert({ nombre: form.nombre.trim(), apellido: form.apellido || null, celular: form.celular || null, email: form.email || null })
+      .select().single();
+    if (!error && c) await supabase.from("saved_searches").insert({ contact_id: c.id, business_type: biz, criteria: crit });
     setSaving(false);
-    if (res.ok) { setModal(false); setForm({ nombre: "", apellido: "", celular: "", email: "" }); showToast(`Contacto "${form.nombre}" guardado con sus criterios`); }
-    else { const e = await res.json().catch(() => ({})); showToast("Error: " + (e.error || res.status)); }
+    if (error) { showToast("Error: " + error.message); return; }
+    setModal(false); setForm({ nombre: "", apellido: "", celular: "", email: "" });
+    showToast(`Contacto "${form.nombre}" guardado con sus criterios`);
   };
 
   return (
@@ -104,8 +109,8 @@ export default function Home() {
           })}
         </div>
         <div className="pfoot">
-          <button className="btn" onClick={() => setModal(true)}>Guardar y asociar a contacto</button>
-          <p className="note">Crea un contacto con estos criterios y sus deal breakers — se guarda en la base para reusarlo.</p>
+          <button className="btn" onClick={openModal}>Guardar y asociar a contacto</button>
+          <p className="note">{session ? "Crea un contacto con estos criterios y sus deal breakers — se guarda en tu cuenta." : "Inicia sesión para guardar contactos con sus criterios."}</p>
         </div>
       </aside>
 

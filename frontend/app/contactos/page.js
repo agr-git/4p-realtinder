@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
+import { useSession } from "../../lib/useSession";
 
 const LBL = { tipo: "Tipo", precio: "Precio", ubicacion: "Ubicación", barrio: "Barrio", habitaciones: "Habitaciones", banos: "Baños", estrato: "Estrato", area: "Área" };
 const fmt = (n) => "$" + Number(n).toLocaleString("es-CO");
@@ -17,29 +19,31 @@ function criteriaChips(ss) {
 }
 
 export default function Contactos() {
+  const session = useSession();
   const [contacts, setContacts] = useState(null);
   const [edit, setEdit] = useState(null);
   const [toast, setToast] = useState("");
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
   const load = async () => {
-    const res = await fetch("/api/contacts");
-    const j = await res.json();
-    setContacts(res.ok ? j.contacts : []);
-    if (!res.ok) showToast("Error: " + (j.error || res.status));
+    const { data, error } = await supabase.from("contacts").select("*, saved_searches(*)").order("created_at", { ascending: false });
+    setContacts(error ? [] : data || []);
+    if (error) showToast("Error: " + error.message);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (session) load(); else if (session === null) setContacts([]); }, [session]);
 
   const saveEdit = async () => {
     if (!edit.nombre?.trim()) { showToast("El nombre es obligatorio"); return; }
-    const res = await fetch(`/api/contacts/${edit.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(edit) });
-    if (res.ok) { setEdit(null); showToast("Contacto actualizado"); load(); } else showToast("Error al guardar");
+    const { error } = await supabase.from("contacts").update({ nombre: edit.nombre.trim(), apellido: edit.apellido || null, celular: edit.celular || null, email: edit.email || null }).eq("id", edit.id);
+    if (error) showToast("Error al guardar"); else { setEdit(null); showToast("Contacto actualizado"); load(); }
   };
   const del = async (id) => {
     if (!confirm("¿Eliminar este contacto?")) return;
-    const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
-    if (res.ok) { showToast("Contacto eliminado"); load(); } else showToast("Error al eliminar");
+    const { error } = await supabase.from("contacts").delete().eq("id", id);
+    if (error) showToast("Error al eliminar"); else { showToast("Contacto eliminado"); load(); }
   };
+
+  if (session === null) return <div className="wrap"><div className="empty" style={{ marginTop: "var(--sp-5)" }}>Inicia sesión (arriba a la derecha) para ver y gestionar tus contactos.</div></div>;
 
   return (
     <div className="wrap">
