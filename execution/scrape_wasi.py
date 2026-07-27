@@ -149,6 +149,41 @@ def parse_search_dt(source, domain, h):
     return rows
 
 
+def parse_detail(h):
+    """Página de DETALLE Wasi (esquema consistente entre sitios):
+    <li><strong>Alcobas / Ambientes:</strong> 3</li>, Baño(s):, Área Construida:, Estrato:.
+    Es la fuente COMPLETA cuando el listado no trae hab/baños/área."""
+    def li(label):
+        m = re.search(r"<strong>\s*" + label + r"[^<]*</strong>\s*([\d.,]+)", h, re.I)
+        return m.group(1) if m else None
+    beds = li(r"(?:Alcobas|Habitaci)"); baths = li(r"Ba[ñn]o")
+    area = li(r"Área Construida") or li(r"Área Privada"); est = li(r"Estrato")
+    return (int(beds) if beds and beds.isdigit() else None,
+            int(baths) if baths and baths.isdigit() else None,
+            area_num(area) if area else None,
+            int(est) if est and est.isdigit() else None)
+
+
+def enrich_from_detail(rows, delay=0.5):
+    """LECCIÓN: ninguna integración debe quedar incompleta. Si el listado no trae
+    hab/baños/área, se rellenan desde la página de detalle (esquema Wasi común).
+    Así cada sitio nuevo se corrige solo, sin nulls en producción."""
+    todo = [r for r in rows if r["beds"] is None or r["baths"] is None or r["area_m2"] is None]
+    if not todo:
+        return
+    print(f"# enriqueciendo {len(todo)} inmuebles desde su detalle…", flush=True)
+    for r in todo:
+        try:
+            b, ba, a, e = parse_detail(fetch(r["url"]))
+            if r["beds"] is None and b is not None: r["beds"] = b
+            if r["baths"] is None and ba is not None: r["baths"] = ba
+            if r["area_m2"] is None and a is not None: r["area_m2"] = a
+            if e is not None: r["estrato"] = e   # estrato exacto del detalle
+        except Exception:
+            pass
+        time.sleep(delay)
+
+
 SEARCH_PARSERS = {"search_text": parse_search_text, "caption_area": parse_caption_area, "search_dt": parse_search_dt}
 
 
@@ -204,6 +239,7 @@ def main():
         except Exception as e:
             print(f"# {site['source']:16} FALLA: {type(e).__name__}: {e}", flush=True)
         time.sleep(2)
+    enrich_from_detail(allrows)   # completar hab/baños/área desde el detalle
     check_completeness(allrows)
     out = json.dumps(allrows, ensure_ascii=False, indent=1)
     if args.out == "-": print(out)

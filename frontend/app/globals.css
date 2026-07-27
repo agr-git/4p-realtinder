@@ -143,3 +143,11 @@ table.inv td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
 table.inv tr:last-child td { border-bottom: 0; }
 
 .linkbtn { border:0; background:none; color:var(--brand); font-weight:650; cursor:pointer; font-family:inherit; font-size:inherit; padding:0; }
+
+/* botón info "i" */
+.infobtn { width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--surface-2);
+  color:var(--muted); font-weight:800; font-style:italic; font-family:var(--font-sans); cursor:pointer; line-height:1; }
+.infobtn:hover { color:var(--brand); border-color:var(--brand); }
+.mbody section { font-size:var(--fs-sm); color:var(--muted); line-height:1.55; }
+.mbody section b { color:var(--ink); }
+.ih { font-size:var(--fs-xs); font-weight:750; text-transform:uppercase; letter-spacing:.05em; color:var(--brand); margin:0 0 4px; }
