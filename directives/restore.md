@@ -2,13 +2,13 @@
 
 **Qué declara este archivo:** cómo reconstruir el proyecto Supabase de 4p-realtinder cuando el existente desaparece o queda inaccesible. `deploy.md` cubre desplegar sobre un backend vivo; esto cubre el caso en que **no hay backend**.
 
-**Evidencia que originó esta directiva (2026-08-04):** el proyecto `mafcnszdxppuhjbhkkwn` pasó a NXDOMAIN global (`dig @8.8.8.8 mafcnszdxppuhjbhkkwn.supabase.co` → `status: NXDOMAIN`; el anterior `cohdesscrbslrbtbejkx` también). No es una pausa — un proyecto pausado sí resuelve DNS. Toda la app (login incluido) devolvía `TypeError: Failed to fetch`, lo que hacía parecer que las credenciales del usuario estaban mal.
+**Evidencia que originó esta directiva (2026-08-04):** el proyecto `mafcnszdxppuhjbhkkwn` pasó a NXDOMAIN global (`dig @8.8.8.8 mafcnszdxppuhjbhkkwn.supabase.co` → `status: NXDOMAIN`; el anterior `cohdesscrbslrbtbejkx` también). Toda la app (login incluido) devolvía `TypeError: Failed to fetch`, lo que hacía parecer que las credenciales del usuario estaban mal.
 
 ---
 
-## 0. Diagnóstico primero — distinguir "backend caído" de "bug de la app"
+## 0. Diagnóstico primero — y NO confundir pausa con borrado
 
-Antes de tocar código, resolver el host:
+Resolver el host es el primer paso, pero **`NXDOMAIN` no prueba que el proyecto fue borrado**. En el plan Free, un proyecto con poca actividad durante 7 días se **pausa**, y hay reportes recurrentes de que el subdominio deja de resolver estando pausado (y a veces incluso tras reanudarlo). Un `dig` con NXDOMAIN es compatible con **pausado** y con **borrado** por igual.
 
 ```bash
 dig @8.8.8.8 <ref>.supabase.co
@@ -16,11 +16,23 @@ dig @8.8.8.8 <ref>.supabase.co
 
 | Resultado | Significa | Acción |
 |---|---|---|
-| `NXDOMAIN` | El proyecto **no existe** (borrado) | Restore completo, este documento |
-| Resuelve, HTTP 540/paused | Proyecto **pausado** | Reanudarlo desde el dashboard; no hace falta restore |
 | Resuelve, HTTP 200 | Backend vivo | El problema está en la app o en RLS, no aquí |
+| `NXDOMAIN` **o** no resuelve | **Indeterminado**: pausado o borrado | Ir al paso 0.1 — no asumir |
+
+### 0.1 Decidir pausa vs. borrado (el dashboard es la única fuente de verdad)
+
+Entrar a [supabase.com/dashboard](https://supabase.com/dashboard) con la cuenta dueña (`am.sanduchas@gmail.com`) y mirar:
+
+- **Aparece con estado "Paused"** → NO hace falta este documento. Botón *Restore/Resume*: el proyecto vuelve a su estado anterior **con los datos intactos**. Hay 1 año de ventana para reanudarlo. Solo faltará repuntar la URL/key en Vercel si el ref cambió (paso 6).
+- **No aparece por ningún lado** → fue borrado. Seguir con el restore completo desde el paso 1.
+
+**Corroborar en el correo de la cuenta:** Supabase avisa por email ~1 semana **antes** de pausar y manda una confirmación **cuando** pausa. Esos dos correos fechan el evento y confirman que fue una pausa automática, no una acción de alguien.
 
 `TypeError: Failed to fetch` en el navegador **nunca** es un problema de credenciales: es que el host no responde. `frontend/lib/supabaseClient.js` (`explainError`) ya traduce esto en la UI.
+
+### 0.2 Prevención
+
+La causa es inactividad de base de datos, no de tráfico web. Un ping programado a `/rest/v1/` unas pocas veces al día (cron de n8n en `hostinger-vps`, que ya existe) evita la pausa.
 
 ---
 
