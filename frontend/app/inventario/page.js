@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase, explainError } from "../../lib/supabaseClient";
 import { useSession } from "../../lib/useSession";
 
 const COLS = ["tipo", "negocio", "precio_cop", "habitaciones", "banos", "area_m2", "ciudad", "barrio", "parqueadero", "titulo", "url"];
@@ -28,14 +28,21 @@ function toRecord(r) {
 export default function Inventario() {
   const session = useSession();
   const [rows, setRows] = useState(null);
+  const [loadErr, setLoadErr] = useState(null);
   const [form, setForm] = useState(empty);
   const [modal, setModal] = useState(false);
   const [toast, setToast] = useState("");
   const fileRef = useRef(null);
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2800); };
 
+  // Un fallo de carga NO puede verse como "sin inmuebles propios aún": con el
+  // backend caído la tabla vacía hacía creer que el inventario se había perdido.
   const load = async () => {
-    const { data, error } = await supabase.from("listings").select("*").eq("source", "propio").order("created_at", { ascending: false });
+    let data, error;
+    try {
+      ({ data, error } = await supabase.from("listings").select("*").eq("source", "propio").order("created_at", { ascending: false }));
+    } catch (e) { error = e; }
+    setLoadErr(error ? explainError(error) : null);
     setRows(error ? [] : data || []);
   };
   useEffect(() => { if (session) load(); else if (session === null) setRows([]); }, [session]);
@@ -44,7 +51,7 @@ export default function Inventario() {
     const recs = records.map(toRecord).filter(Boolean);
     if (!recs.length) { showToast("Ninguna fila válida (requiere tipo o precio)"); return; }
     const { error } = await supabase.from("listings").insert(recs);
-    if (error) showToast("Error: " + error.message); else { showToast(`${recs.length} inmueble(s) agregado(s)`); load(); }
+    if (error) showToast("Error: " + explainError(error)); else { showToast(`${recs.length} inmueble(s) agregado(s)`); load(); }
   };
 
   const downloadTemplate = () => {
@@ -86,6 +93,7 @@ export default function Inventario() {
         <thead><tr><th>Tipo</th><th>Negocio</th><th>Precio</th><th>Hab.</th><th>Baños</th><th>Área m²</th><th>Ciudad</th><th>Barrio</th><th>Parq.</th></tr></thead>
         <tbody>
           {rows == null ? <tr><td colSpan={9} style={{ textAlign: "center", padding: 30, color: "var(--muted)" }}>Cargando…</td></tr>
+            : loadErr ? <tr><td colSpan={9} style={{ textAlign: "center", padding: 34, color: "var(--db)" }}>No se pudo cargar tu inventario. {loadErr}</td></tr>
             : rows.length === 0 ? <tr><td colSpan={9} style={{ textAlign: "center", padding: 34, color: "var(--muted)" }}>Sin inmuebles propios aún. Descarga la plantilla o usa "Agregar registro".</td></tr>
             : rows.map((r) => (
               <tr key={r.id}><td>{cap(r.property_type)}</td><td>{r.business_type}</td><td className="tnum">{fmt(r.price_cop)}</td>

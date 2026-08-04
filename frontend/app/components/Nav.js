@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase, configError, explainError } from "../../lib/supabaseClient";
 import { useSession } from "../../lib/useSession";
 
 const TABS = [
@@ -22,12 +22,18 @@ export default function Nav() {
   const [err, setErr] = useState("");
 
   const login = async () => {
+    if (configError) { setErr(explainError(null)); return; }
     setBusy(true); setErr("");
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass });
+    // El error de red se traduce: "Failed to fetch" a secas hacía parecer que
+    // las credenciales estaban mal cuando el backend simplemente no existía.
+    let error;
+    try {
+      ({ error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass }));
+    } catch (e) { error = e; }
     setBusy(false);
-    if (error) setErr(error.message); else { setModal(false); setEmail(""); setPass(""); }
+    if (error) setErr(explainError(error)); else { setModal(false); setEmail(""); setPass(""); }
   };
-  const logout = () => supabase.auth.signOut();
+  const logout = () => supabase?.auth.signOut();
 
   return (
     <>
