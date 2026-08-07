@@ -128,7 +128,13 @@ def parse_caption_area(source, domain, h):
 def parse_search_dt(source, domain, h):
     """gruporepublica/gomezchaljubb/cima: features en <span class=dt1>N</span><span class=dt2>Label</span>,
     precio en <div class=areaPrecio>. Tarjetas separadas por el <a> de la imagen."""
-    cards = re.split(r'(?=<a href="https://' + re.escape(domain) + r'/[a-z0-9-]+/\d+">\s*<figure)', h)
+    # Separador = el <figure> que abre cada tarjeta. El patrón anterior partía por
+    # <a href="…/id"><figure>, pero en el markup real el <a> de la imagen va DENTRO
+    # del <figure>, no antes: nunca casaba, todo el HTML quedaba como UNA sola
+    # tarjeta y solo se extraía el primer inmueble de la página (12 -> 1).
+    # Fallo silencioso: devolvía 8 en vez de 0, así que parecía funcionar.
+    # Cubierto por tests/test_parsers.py contra el fixture de gruporepublica.
+    cards = re.split(r'(?=<figure)', h)
     tlink = re.compile(r'href="https://' + re.escape(domain) + r'/([a-z0-9-]+)/(\d+)"\s+class="t8-title"[^>]*>([^<]+)<')
     img = re.compile(r'<img[^>]+src="(https://image\.wasi\.co/[^"]+)"')
     prc = re.compile(r'\$\s?([\d.,]+)\s*<small>')

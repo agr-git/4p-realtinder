@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase, explainError } from "../../lib/supabaseClient";
 import { useSession } from "../../lib/useSession";
 
 const LBL = { tipo: "Tipo", precio: "Precio", ubicacion: "Ubicación", barrio: "Barrio", habitaciones: "Habitaciones", banos: "Baños", estrato: "Estrato", area: "Área" };
@@ -21,14 +21,20 @@ function criteriaChips(ss) {
 export default function Contactos() {
   const session = useSession();
   const [contacts, setContacts] = useState(null);
+  const [loadErr, setLoadErr] = useState(null);
   const [edit, setEdit] = useState(null);
   const [toast, setToast] = useState("");
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
+  // Un fallo de carga NO puede verse como "aún no hay contactos": con el
+  // backend caído la lista vacía hacía creer que los datos se habían perdido.
   const load = async () => {
-    const { data, error } = await supabase.from("contacts").select("*, saved_searches(*)").order("created_at", { ascending: false });
+    let data, error;
+    try {
+      ({ data, error } = await supabase.from("contacts").select("*, saved_searches(*)").order("created_at", { ascending: false }));
+    } catch (e) { error = e; }
+    setLoadErr(error ? explainError(error) : null);
     setContacts(error ? [] : data || []);
-    if (error) showToast("Error: " + error.message);
   };
   useEffect(() => { if (session) load(); else if (session === null) setContacts([]); }, [session]);
 
@@ -49,6 +55,7 @@ export default function Contactos() {
     <div className="wrap">
       <div className="rhead" style={{ marginTop: "var(--sp-5)" }}><h2>Contactos</h2><span className="sub">{contacts ? `${contacts.length} guardados` : "cargando…"}</span></div>
       {contacts == null ? <div className="empty">Cargando…</div>
+        : loadErr ? <div className="empty">No se pudieron cargar tus contactos.<br />{loadErr}</div>
         : contacts.length === 0 ? <div className="empty">Aún no hay contactos. Desde <b>Búsqueda</b>, define criterios y usa "Guardar y asociar a contacto".</div>
         : <div className="clist">
             {contacts.map((c) => (

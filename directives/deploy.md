@@ -11,6 +11,8 @@ Este proyecto tiene **dos targets independientes**. Un deploy de uno no toca al 
 **Qué despliega:** la app Next.js de `frontend/`.
 **Disparo:** automático al mergear a `main` (CI-on-push de Vercel desde GitHub).
 **Variables requeridas:** URL de Supabase y anon key, como env vars de Vercel. Sin ellas el build pasa pero el dashboard queda sin datos.
+**Recuperación ante backend inexistente:** si el proyecto Supabase desapareció (NXDOMAIN), esta directiva no aplica — ver `restore.md`.
+
 **Preview:** Vercel genera preview deployment por PR. **Verificarlo funcionalmente antes de mergear** — es el paso 3 del checklist del framework y aquí sí aplica.
 
 **Smoke test post-deploy:**

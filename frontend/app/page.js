@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase, configError, explainError } from "../lib/supabaseClient";
 import { rankListings } from "../lib/affinity";
 import { useSession } from "../lib/useSession";
 
@@ -39,14 +39,23 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
-      const [l, w] = await Promise.all([
-        supabase.from("listings").select("*").eq("is_active", true).limit(2000),
-        supabase.from("affinity_weights").select("criterio,peso"),
-      ]);
-      if (l.error) { setErr(l.error.message); setLoading(false); return; }
-      setListings(l.data || []);
-      const wobj = {}; (w.data || []).forEach((r) => (wobj[r.criterio] = r.peso));
-      setWeights(wobj);
+      if (configError) { setErr(explainError(null)); setLoading(false); return; }
+      try {
+        const [l, w] = await Promise.all([
+          supabase.from("listings").select("*").eq("is_active", true).limit(2000),
+          supabase.from("affinity_weights").select("criterio,peso"),
+        ]);
+        // Cualquiera de las dos que falle es un fallo real: sin pesos la
+        // afinidad se calcula contra {} y todo sale "peso —" con 0% de match,
+        // en silencio. Antes solo se revisaba l.error.
+        const bad = l.error || w.error;
+        if (bad) { setErr(explainError(bad)); setLoading(false); return; }
+        setListings(l.data || []);
+        const wobj = {}; (w.data || []).forEach((r) => (wobj[r.criterio] = r.peso));
+        setWeights(wobj);
+      } catch (e) {
+        setErr(explainError(e));
+      }
       setLoading(false);
     })();
   }, []);
@@ -82,7 +91,7 @@ export default function Home() {
       .select().single();
     if (!error && c) await supabase.from("saved_searches").insert({ contact_id: c.id, business_type: biz, criteria: crit });
     setSaving(false);
-    if (error) { showToast("Error: " + error.message); return; }
+    if (error) { showToast("Error: " + explainError(error)); return; }
     setModal(false); setForm({ nombre: "", apellido: "", celular: "", email: "" });
     showToast(`Contacto "${form.nombre}" guardado con sus criterios`);
   };
@@ -116,7 +125,7 @@ export default function Home() {
 
       <main>
         {loading ? <div className="empty">Cargando inventario en vivo…</div>
-          : err ? <div className="empty">Error leyendo Supabase: {err}</div>
+          : err ? <div className="empty">No se pudo cargar el inventario.<br />{err}</div>
           : <>
               <div className="rhead"><h2>{shown.length} propiedades</h2><span className="sub">ordenadas por afinidad · {biz}{excluded.length ? ` · ${excluded.length} excluidas por deal breaker` : ""} · {sources.length} fuentes</span></div>
               <div className="grid">{shown.length ? shown.map((s) => <Card key={s.it.dedupe_key} s={s} />) : <div className="empty">Ningún inmueble de esta operación cumple los criterios activos.</div>}</div>
