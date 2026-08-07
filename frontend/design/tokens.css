@@ -48,6 +48,58 @@
   /* — Layout — */
   --maxw: 1240px;
   --sidebar-w: 312px;
+  --gutter: var(--sp-5);            /* padding lateral de la página */
+  --header-h: 58px;                 /* alto real del header; lo usa .panel.sticky */
+  --card-min: 228px;                /* ancho mínimo de tarjeta en el grid */
+
+  /* — Táctil —
+     --tap: área mínima de un control interactivo (WCAG 2.5.5 = 44px). En
+     escritorio con ratón no hace falta, así que arranca en 0 y solo sube en
+     los breakpoints táctiles: si se aplicara siempre, deformaría la densidad
+     del panel lateral en pantallas grandes.
+     --fs-input: iOS Safari hace ZOOM automático al enfocar un campo cuyo
+     font-size sea < 16px. En escritorio da igual; en móvil se sube a 16px. */
+  --tap: 0px;
+  --fs-input: var(--fs-sm);
+}
+
+/* ————————————————————————————————————————————————————————————————
+   BREAKPOINTS. Solo se redefinen TOKENS; las reglas viven en globals.css.
+   860px = donde .layout deja de tener dos columnas.
+   ———————————————————————————————————————————————————————————————— */
+
+/* Tablet: el sidebar se estrecha para no ahogar los resultados. */
+@media (max-width: 1100px) {
+  :root { --sidebar-w: 268px; --gutter: var(--sp-4); --card-min: 200px; }
+}
+
+/* Tablet vertical: sin sidebar, el ancho entero es para el listado. --card-min
+   SUBE respecto a escritorio: con 155px entraban 4 columnas de ~170px y el
+   precio partía "COP" a la línea siguiente. A 215px caben 3 holgadas. */
+@media (max-width: 860px) {
+  :root {
+    --gutter: var(--sp-4);
+    --card-min: 215px;
+    --header-h: 54px;
+  }
+}
+
+/* Móvil grande: dos tarjetas por fila. */
+@media (max-width: 640px) {
+  :root { --card-min: 155px; }
+}
+
+/* TÁCTIL — por tipo de puntero, NO por ancho.
+   Un iPad Pro mide 1024px y se toca con el dedo: atar esto a `max-width`
+   dejaba fuera a las tablets grandes, que se quedaban con controles de 28px
+   y con inputs de 12.5px (o sea, con zoom automático de Safari en cada toque).
+   `pointer: coarse` acierta en móvil y tablet sin tocar el escritorio. */
+@media (pointer: coarse) {
+  :root { --tap: 44px; --fs-input: 16px; }
+}
+
+@media (max-width: 400px) {
+  :root { --gutter: var(--sp-3); --card-min: 100%; }  /* una tarjeta, a todo el ancho */
 }
 
 /* Tema oscuro: solo se redefinen tokens; los componentes no cambian. */

@@ -35,7 +35,19 @@ export default function Home() {
   const [form, setForm] = useState({ nombre: "", apellido: "", celular: "", email: "" });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  // En móvil los criterios viven en una hoja inferior que se abre bajo demanda:
+  // ocupaban toda la primera pantalla y empujaban los resultados fuera de vista.
+  // En escritorio el panel está siempre visible y este estado no se usa.
+  const [filtros, setFiltros] = useState(false);
   const session = useSession();
+
+  // Con la hoja abierta, el scroll del fondo "atraviesa" y mueve el listado.
+  useEffect(() => {
+    if (!filtros) return;
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previo; };
+  }, [filtros]);
 
   useEffect(() => {
     (async () => {
@@ -96,9 +108,15 @@ export default function Home() {
     showToast(`Contacto "${form.nombre}" guardado con sus criterios`);
   };
 
+  // Cuántos criterios están puestos: se muestra en el botón flotante para que
+  // en móvil se sepa que hay filtros activos sin abrir la hoja.
+  const nActivos = Object.values(crit).filter((c) => c && c.v !== "").length;
+
   return (
     <div className="wrap"><div className="layout">
-      <aside className="panel sticky">
+      {filtros && <div className="filters-back" onClick={() => setFiltros(false)} />}
+      <aside className={"panel sticky filters" + (filtros ? " open" : "")}>
+        <span className="drawer-grip" onClick={() => setFiltros(false)} />
         <div className="phead"><h2>Criterios del cliente</h2><p>Ajusta y el match se recalcula al instante</p></div>
         <div className="seg">{["venta", "arriendo"].map((b) => <button key={b} className={biz === b ? "on" : ""} onClick={() => setBiz(b)}>{b === "venta" ? "Venta" : "Arriendo"}</button>)}</div>
         <div className="crits">
@@ -119,6 +137,10 @@ export default function Home() {
         </div>
         <div className="pfoot">
           <button className="btn" onClick={openModal}>Guardar y asociar a contacto</button>
+          {/* Solo en móvil: cierra la hoja y devuelve al listado ya filtrado. */}
+          <button className="btn ghost drawer-close" style={{ marginTop: "var(--sp-2)" }} onClick={() => setFiltros(false)}>
+            Ver {shown.length} {shown.length === 1 ? "propiedad" : "propiedades"}
+          </button>
           <p className="note">{session ? "Crea un contacto con estos criterios y sus deal breakers — se guarda en tu cuenta." : "Inicia sesión para guardar contactos con sus criterios."}</p>
         </div>
       </aside>
@@ -151,6 +173,14 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* Solo visible en móvil (CSS). Se oculta con la hoja abierta para no
+          quedar flotando encima de ella. */}
+      {!filtros && !loading && !err && (
+        <button className="fab-filters" onClick={() => setFiltros(true)} aria-label="Abrir criterios de búsqueda">
+          Filtros{nActivos > 0 && <span className="n">{nActivos}</span>}
+        </button>
+      )}
+
       {toast && <div className="toast show">{toast}</div>}
     </div></div>
   );
