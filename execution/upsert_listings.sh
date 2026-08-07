@@ -34,9 +34,17 @@ set -a; . "$ENVFILE"; set +a
 TOTAL=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$JSON")
 echo "Archivo: $JSON  ($TOTAL filas)"
 
-# Deduplicar por dedupe_key ANTES de enviar: Postgres lanza 21000
-# ("ON CONFLICT DO UPDATE command cannot affect row a second time") si un mismo
-# statement trae la misma clave dos veces. Se conserva la ultima aparicion.
+# Dos normalizaciones obligatorias antes de enviar:
+#
+# 1. Deduplicar por dedupe_key. Postgres lanza 21000 ("ON CONFLICT DO UPDATE
+#    command cannot affect row a second time") si un mismo statement trae la
+#    misma clave dos veces. Se conserva la ultima aparicion.
+#
+# 2. Igualar el conjunto de claves de TODAS las filas. PostgREST rechaza el
+#    lote entero con 400 PGRST102 "All object keys must match" si un objeto
+#    trae una clave que otro no: el scraper solo agrega `estrato` cuando lo
+#    encuentra en el detalle, asi que un lote mixto revienta. Las faltantes se
+#    rellenan con null, que es justo lo que significan.
 python3 - "$JSON" > /tmp/listings_dedup.json <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1]))
@@ -44,8 +52,15 @@ uniq = {}
 for r in rows:
     uniq[r["dedupe_key"]] = r
 out = list(uniq.values())
+
+todas = sorted({k for r in out for k in r})
+for r in out:
+    for k in todas:
+        r.setdefault(k, None)
+
 print(json.dumps(out, ensure_ascii=False))
-sys.stderr.write(f"dedupe: {len(rows)} -> {len(out)} filas unicas\n")
+sys.stderr.write(f"dedupe: {len(rows)} -> {len(out)} filas unicas; "
+                 f"claves normalizadas a {len(todas)}\n")
 PY
 
 UNICAS=$(python3 -c "import json;print(len(json.load(open('/tmp/listings_dedup.json'))))")
