@@ -30,9 +30,22 @@ Entrar a [supabase.com/dashboard](https://supabase.com/dashboard) con la cuenta 
 
 `TypeError: Failed to fetch` en el navegador **nunca** es un problema de credenciales: es que el host no responde. `frontend/lib/supabaseClient.js` (`explainError`) ya traduce esto en la UI.
 
-### 0.2 Prevención
+### 0.2 Prevención — implementada (2026-08-07)
 
-La causa es inactividad de base de datos, no de tráfico web. Un ping programado a `/rest/v1/` unas pocas veces al día (cron de n8n en `hostinger-vps`, que ya existe) evita la pausa.
+La causa es inactividad de **base de datos**, no de tráfico web: el frontend puede recibir visitas y el proyecto pausarse igual.
+
+Hay un keep-alive diario en marcha: un job de launchd (`com.realtinder.keepalive`, 10:00) que inserta una fila ficticia en `contacts` y la borra en el mismo run. Se eligió una **escritura** real en vez de un `GET /rest/v1/` porque un ping de lectura no garantiza contar como actividad para el criterio de pausa.
+
+Ver **`docs/keepalive.md`** para instalación, comprobación y desinstalación.
+
+Comprobación rápida de que sigue vivo:
+
+```bash
+tail -5 ~/.config/realtinder/keepalive.log   # una linea OK por dia
+launchctl list | grep realtinder             # 2a columna 0 = ultima corrida sin error
+```
+
+**Confirmado el 2026-08-07:** la hipótesis de auto-pausa era correcta. El proyecto `mafcnszdxppuhjbhkkwn` volvió a resolver tras reanudarlo desde el dashboard, **con los 280 listings y el usuario de prueba intactos** — no hubo borrado ni pérdida de datos. El mismo `ref`, la misma URL y la misma publishable key siguen sirviendo, así que no hizo falta tocar Vercel.
 
 ---
 
